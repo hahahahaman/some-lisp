@@ -15,13 +15,19 @@
 ;; for when no other value should be returned
 (define empty-begin 813)
 
-;; i need to define wrong
+;; the environment
+;; it is going to be an a-list
+(define env.init '())
+
 ;; philosophy on errors, rather than always returning some value
 ;; some things should return an error to point out something wrong
 ;; immediately, rather than letting the program continue
 
+(define (wrong* . args)
+  (apply error args))
+
 ;; evaluate sequence in order
-(define (eprogn exps env)
+(define (eprogn* exps env)
   (if (pair? exps)
       (if (pair? (cdr exps))
           (begin (evaluate (car exps) env)
@@ -31,34 +37,55 @@
 
 ;; take a list of exprs
 ;; return the corresponding list of values of those exprs
-(define (evlis exps env)
+(define (evlis* exps env)
   (if (pair? exps)
       (let ((arg1 (evaluate (car exps) env)))
         ;; explicit order from left to right of list
         (cons arg1 (evlis (cdr exps) env)))
       '()))
 
-(define (lookup id env)
+(define (lookup* id env)
   (if (pair? env)
       (if (eq? (caar env) id)
           (cdar env)
           (lookup id (cdr env)))
-      (wrong "No such binding" id)))
+      (wrong* 'lookup "No such binding ~a" id)))
 
-(define (update! id env value)
+(define (update!* id env value)
   (if (pair? env)
       (if (eq? (caar env) id)
-          (begin (set-mcdr! (car env) value)
+          (begin (set-cdr! (car env) value)
                  value)
           (update! id (cdr env) value))))
 
-(define (evaluate e env)
+(define (extend* env variables values)
+  (cond ((pair? variables)
+         (if (pair? values)
+             (cons (cons (car variables) (car val))
+                   (extend env (cdr variables) (cdr values)))
+             (wrong* 'extend "Not enough values")))
+        ((null? variables)
+         (if (null? values)
+             env
+             (wrong* 'extend "Too many values")))
+        ((symbol? variables) (cons (cons variables values) env))))
+
+(define (invoke* fn args)
+  (if (procedure? fn)
+      (fn args)
+      (wrong* 'invoke "Not a function ~a" fn)))
+
+(define (make-function* variables body env)
+  (lambda (values)
+    (eprogn body (extend env.init variables values))))
+
+(define (evaluate* e env)
   (if (atom? e)
       ;; so we have an atom
       (cond ((symbol? e) (lookup e env))
             ((or (number? e) (string? e) (char? e) (boolean? e) (vector? e))
              e)
-            (else (wrong "Cannot evaluate" e)))
+            (else (wrong* 'evaluate "Cannot evaluate ~a" e)))
 
       ;; list
       (case (car e)
