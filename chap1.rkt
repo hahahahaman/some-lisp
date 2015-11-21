@@ -137,14 +137,20 @@
 (def* '- (fn* -))
 
 ;; runs, but is shit
+;; if using geiser, place in .emacs file
+;; (setq geiser-repl-read-knly-prompt-p nil)
+;; to prevent text read only in the geiser repl buffer
+;; since the (newline) messes with the next (read)
 (define (repl)
   (define (toplevel)
+    (display "works?>> ")
     (let ((expr (read)))
-      (if (eq? (quote exit) expr)
+      (if (eq? 'exit expr) ;; right now this quits when exit is written directly
           (begin
             (display "Death is inevitable...")
             (newline))
           (begin
             (display (evaluate* expr *env-global*))
+            (newline)
             (toplevel)))))
   (toplevel))
