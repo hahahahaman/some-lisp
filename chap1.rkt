@@ -137,7 +137,7 @@
   (syntax-rules ()
     ((defprimitive name value arity)
      (definitial name
-       (lambda (values)
+       (lambda values
          (if (= arity (length values))
              (apply value values)
              (wrong* "Incorrect arity: " (list 'name values))))))))
@@ -154,6 +154,7 @@
         *the-false-value*)))
 
 ;; dunno if this is necessary
+;; but it does help readability when enclosing only r5rs scheme functions
 (define (fn* fn) fn)
 
 ;; a small library
@@ -161,14 +162,14 @@
 (definitial f *the-false-value*)
 (definitial nil '())
 
-(defprimitive cons cons 2)
-(defprimitive eq? eq? 2)
+(defprimitive cons (fn* cons) 2)
+(defprimitive eq? (comparison (fn* eq?)) 2)
 
 (def* '< (comparison <))
 (def* '> (comparison >))
 (def* '+ (fn* +))
 (def* '- (fn* -))
-(def* '* *)
+(def* '* (fn* *))
 
 ;; runs, but is shitty
 ;; if using geiser, place in .emacs file
