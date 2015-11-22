@@ -1,5 +1,6 @@
 #lang r5rs
 ;; new r6rs racket uses immutable pairs, and other unknown changes
+;; this book was published in the 1990s
 
 ;;;; some kind of minimal scheme like language,
 ;;;; whose interpreter is implemented in scheme
@@ -15,8 +16,8 @@
 (define *undef* (cons "what" "is"))
 
 ;; the environment
-;; it is going to be an alist
-;; so key-value pair
+;; it is going to be an alist, so key-value pair, this is deep binding
+;; i dont really understand shallow binding
 ;; lookup* search the alist trying to find the key
 (define *env-init* '())
 
@@ -118,34 +119,67 @@
 
 (define *env-global* *env-init*)
 
+;; some macros, which are hygenic? (respect lexical binding)
+;; hygiene is apparently more useful in Lisp1's like scheme
+
+;; bind new variable to global environment
+(define-syntax definitial
+  (syntax-rules ()
+    ((definitial name)
+     (begin (set! *env-global* (extend* 'name 'void *env-global*))
+            'name))
+    ((definitial name value)
+     (begin (set! *env-global* (extend* 'name value *env-global*))
+            'name))))
+
+;; bind new function of specific arity to global env
+(define-syntax defprimitive
+  (syntax-rules ()
+    ((defprimitive name value arity)
+     (definitial name
+       (lambda (values)
+         (if (= arity (length values))
+             (apply value values)
+             (wrong* "Incorrect arity: " (list 'name values))))))))
+
+;; simplified functional version of definitial
+;; can be used to simply add functions into the interpreter environment
 (define (def* name val)
   (set! *env-global* (extend* name val *env-global*)))
 
 (define (comparison fn)
-  (lambda (vals)
-    (if (fn vals)
+  (lambda vals
+    (if (apply fn vals)
         #t
         *the-false-value*)))
 
-;; dunno if is necessary
+;; dunno if this is necessary
 (define (fn* fn) fn)
+
+;; a small library
+(definitial t #t)
+(definitial f *the-false-value*)
+(definitial nil '())
+
+(defprimitive cons cons 2)
+(defprimitive eq? eq? 2)
 
 (def* '< (comparison <))
 (def* '> (comparison >))
-(def* 'eq? (comparison eq?))
 (def* '+ (fn* +))
 (def* '- (fn* -))
+(def* '* *)
 
-;; runs, but is shit
+;; runs, but is shitty
 ;; if using geiser, place in .emacs file
 ;; (setq geiser-repl-read-knly-prompt-p nil)
 ;; to prevent text read only in the geiser repl buffer
 ;; since the (newline) messes with the next (read)
-(define (repl)
+(define (repl1)
   (define (toplevel)
     (display "works?>> ")
     (let ((expr (read)))
-      (if (eq? 'exit expr) ;; right now this quits when exit is written directly
+      (if (eq? 'exit expr) ;; right now this quits when "exit" is written (no quotes)
           (begin
             (display "Death is inevitable...")
             (newline))
