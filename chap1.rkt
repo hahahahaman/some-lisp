@@ -34,6 +34,7 @@
               (write arg))
             args)
   (newline)
+  ;; bleh, returns a second error message
   (scheme-report-environment -1))
 
 ;; evaluate sequence in order
@@ -47,11 +48,13 @@
 
 ;; take a list of exprs
 ;; return the corresponding list of values of those exprs
+;; mapcar
 (define (evlis* exps env)
   (if (pair? exps)
-      (let ((arg1 (evaluate* (car exps) env)))
-        ;; explicit order from left to right of list
-        (cons arg1 (evlis* (cdr exps) env)))
+      (cons (evaluate* (car exps) env)
+            (if (pair? (cdr exps))
+                (evlis* (cdr exps) env)
+                '()))
       '()))
 
 ;;search environment for key equal to id
@@ -86,7 +89,13 @@
 
 (define (invoke* fn args)
   (if (procedure? fn)
-      (apply fn args)
+      (let ((result (apply fn args)))
+        (display "tracer: ")
+        (display args)
+        (display " => ")
+        (display result)
+        (newline)
+        result)
       (wrong* "Not a function" fn)))
 
 (define (make-function* vars body env)
@@ -97,19 +106,22 @@
   (if (atom? e)
       ;; so we have an atom
       (cond ((symbol? e) (lookup* e env))
+
             ((or (number? e) (string? e) (char? e) (boolean? e) (vector? e))
              e)
             (else (wrong* "Cannot evaluate: " e)))
 
       ;; list
       (case (car e)
-        ((quote) (cadr e))
+        ((quote)
+         (cadr e))
         ((if) (if (not (eq? (evaluate* (cadr e) env) *the-false-value*))
                   (evaluate* (caddr e) env)
                   (evaluate* (cadddr e) env)))
         ((begin) (eprogn* (cdr e) env))
         ((set!) (update!* (cadr e) env (evaluate* (caddr e) env)))
         ((lambda) (make-function* (cadr e) (cddr e) env))
+        ((evaluate) (evaluate* (cdr e) env))
         (else (invoke* (evaluate* (car e) env)
                       (evlis* (cdr e) env))))))
 
@@ -123,24 +135,31 @@
 ;; hygiene is apparently more useful in Lisp1's like scheme
 
 ;; bind new variable to global environment
-(define-syntax definitial
+(define-syntax definitial*
   (syntax-rules ()
-    ((definitial name)
+    ((definitial* name)
      (begin (set! *env-global* (extend* 'name 'void *env-global*))
             'name))
-    ((definitial name value)
+    ((definitial* name value)
      (begin (set! *env-global* (extend* 'name value *env-global*))
             'name))))
 
 ;; bind new function of specific arity to global env
-(define-syntax defprimitive
+(define-syntax defprimitive*
   (syntax-rules ()
-    ((defprimitive name value arity)
-     (definitial name
+    ((defprimitive* name value arity)
+     (definitial* name
        (lambda values
          (if (= arity (length values))
              (apply value values)
              (wrong* "Incorrect arity: " (list 'name values))))))))
+
+(define-syntax defpredicate*
+  (syntax-rules ()
+    ((defpredicate* name value arity)
+     (defprimitive* name
+       (lambda values (or (apply value values) *the-false-value*))
+       arity))))
 
 ;; simplified functional version of definitial
 ;; can be used to simply add functions into the interpreter environment
@@ -158,12 +177,13 @@
 (define (fn* fn) fn)
 
 ;; a small library
-(definitial t #t)
-(definitial f *the-false-value*)
-(definitial nil '())
+(definitial* t #t)
+(definitial* f *the-false-value*)
+(definitial* nil '())
 
-(defprimitive cons (fn* cons) 2)
-(defprimitive eq? (comparison (fn* eq?)) 2)
+(defprimitive* cons (fn* cons) 2)
+
+(defpredicate* eq? (fn* eq?) 2)
 
 (def* '< (comparison <))
 (def* '> (comparison >))
@@ -189,3 +209,94 @@
             (newline)
             (toplevel)))))
   (toplevel))
+
+;; from the book
+(define (chapter1-scheme)
+  (define (toplevel)
+    (display (evaluate* (read *env-global*)))
+    (toplevel))
+  (toplevel))
+
+;; 1.1
+
+;; (define (invoke* fn args)
+;;   (if (procedure? fn)
+;;       (let ((result (apply fn args)))
+;;         (display "tracer: ")
+;;         (display args)
+;;         (display " => ")
+;;         (display result)
+;;         (newline))
+;;       (wrong* "Not a function" fn)))
+
+;; 1.2
+;; inline code of another evlis call inside evlis
+
+;; 1.3
+
+;; why would I do this?
+;; unbounded names can't be found till lookup is called
+;; setting a new value is weird
+;; much prefer something simpler with more restrictions, like:
+;; (define (extend13 name value env)
+;;   (if (pair? name)
+;;       (wrong* "NAME must be atomic: " name)
+;;       (cons (cons name value) env)))
+
+(define *env13* (list (cons '(a b c) '(1 2 3))))
+
+(define (extend13 names values env)
+  (cons (cons names values) env))
+
+(define (lookup13 id env)
+  (define (lookthrough names vals)
+    (if (pair? names)
+        (if (eq? (car names) id)
+            (if (pair? vals)
+                (car vals)
+                (wrong* "No value bound to: " id))
+            *undef*)
+        (if (eq? names id)
+            vals
+            *undef*)))
+  (if (pair? env)
+      (if (pair? (caar env)) ;; names is a list
+          (let ((return-value (lookthrough (caar env) (cdar env))))
+            (if (eq? return-value *undef*)
+                (lookup13 id (cdr env))
+                return-value))
+          (cdar env))
+      (wrong* "No such binding: " id)))
+
+(define (update!13 id env value)
+  (define (lookthrough names vals)
+    (if (pair? names)
+        (if (eq? (car names) id)
+            (if (pair? vals)
+                (begin (set-car! vals value)
+                       value)
+                (wrong* "No binding to: " id))
+            *undef*)
+        (if (eq? names id)
+            'set
+            *undef*)))
+  (if (pair? env)
+      (if (pair? (caar env))
+          (let ((return-value (lookthrough (caar env) (cdar env))))
+            (if (eq? return-value *undef*)
+                (update!13 id (cdr env) return-value)
+                (if (eq? value 'set)
+                    (begin (set-cdr! (car env) value)
+                           value)
+                    return-value))))
+      (wrong* "No such binding: " id)))
+;; 1.4
+
+;; 1.5
+
+
+;; 1.6
+(definitial* list (lambda values values))
+
+;; 1.7
+;; 1.8
