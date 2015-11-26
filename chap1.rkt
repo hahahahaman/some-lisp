@@ -1,4 +1,6 @@
 #lang r5rs
+(#%require (only racket/base
+                 time))
 ;; new r6rs racket uses immutable pairs, and other unknown changes
 ;; this book was published in the 1990s
 
@@ -121,9 +123,8 @@
         ((begin) (eprogn* (cdr e) env))
         ((set!) (update!* (cadr e) env (evaluate* (caddr e) env)))
         ((lambda) (make-function* (cadr e) (cddr e) env))
-        ((evaluate) (evaluate* (cdr e) env))
         (else (invoke* (evaluate* (car e) env)
-                      (evlis* (cdr e) env))))))
+                       (evlis* (cdr e) env))))))
 
 ;; --- end of interpreter
 
@@ -281,14 +282,12 @@
             'set
             *undef*)))
   (if (pair? env)
-      (if (pair? (caar env))
-          (let ((return-value (lookthrough (caar env) (cdar env))))
-            (if (eq? return-value *undef*)
-                (update!13 id (cdr env) return-value)
-                (if (eq? value 'set)
-                    (begin (set-cdr! (car env) value)
-                           value)
-                    return-value))))
+      (let ((return-value (lookthrough (caar env) (cdar env))))
+        (if (eq? return-value *undef*)
+            (update!13 id (cdr env) value)
+            (if (eq? return-value 'set)
+                (begin (set-cdr! (car env) value) value)
+                value)))
       (wrong* "No such binding: " id)))
 ;; 1.4
 
@@ -299,4 +298,38 @@
 (definitial* list (lambda values values))
 
 ;; 1.7
+
+
+;; (define (call/cc* fn))
+
 ;; 1.8
+
+;; 1.9 inside repl1
+
+;; 1.10
+;; uhhh it's faster?
+(define (test-speed)
+  (display "(eval) ")
+  (newline)
+  (time (display (eval (if (> 122412 123421) 1 2)
+                       (null-environment 5)))
+        (newline))
+  (newline)
+
+  (display "(eval (evualate*)) ")
+  (newline)
+  (time (display (eval (evaluate* (if (> 122412 123421) 1 2)
+                                  *env-global*)
+                       (null-environment 5)))
+        (newline))
+  (newline)
+
+  (display "(eval (evalutate* (evaluate*))) ")
+  (newline)
+  (time (display (eval (evaluate*
+                        (evaluate* (if (> 122412 123421) 1 2)
+                                   *env-global*)
+                        *env-global*)
+                       (null-environment 5)))
+        (newline))
+  (newline))
