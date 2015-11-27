@@ -1,8 +1,11 @@
-#lang r5rs
-(#%require (only racket/base
-                 time))
+#lang racket
+(provide evaluate* *env-global*)
+(require scheme/mpair)
 ;; new r6rs racket uses immutable pairs, and other unknown changes
 ;; this book was published in the 1990s
+;; mutable pairs in seperate library scheme/mpair
+
+(define ns (make-base-namespace))
 
 ;;;; some kind of minimal scheme like language,
 ;;;; whose interpreter is implemented in scheme
@@ -12,10 +15,10 @@
 ;; custom false value
 ;; dotted pair probably won't be confused with anything else
 ;; everything else is true
-(define *the-false-value* (cons "false" "boolean"))
+(define *the-false-value* (mcons "false" "boolean"))
 
 ;; for when no other value should be returned
-(define *undef* (cons "what" "is"))
+(define *undef* (mcons "what" "is"))
 
 ;; the environment
 ;; it is going to be an alist, so key-value pair, this is deep binding
@@ -28,16 +31,19 @@
 ;; immediately, rather than letting the program continue
 
 ;; implementation from http://srfi.schemers.org/srfi-23/srfi-23.html
-(define (wrong* reason . args)
-  (display "Error: ")
-  (display reason)
-  (for-each (lambda (arg)
-              (display " ")
-              (write arg))
-            args)
-  (newline)
-  ;; bleh, returns a second error message
-  (scheme-report-environment -1))
+;; (define (wrong* reason . args)
+;;   (display "Error: ")
+;;   (display reason)
+;;   (for-each (lambda (arg)
+;;               (display " ")
+;;               (write arg))
+;;             args)
+;;   (newline)
+;;   ;; bleh, returns a second error message
+;;   (scheme-report-environment -1))
+
+(define (wrong* . args)
+  (apply error args))
 
 ;; evaluate sequence in order
 (define (eprogn* exps env)
@@ -53,7 +59,7 @@
 ;; mapcar
 (define (evlis* exps env)
   (if (pair? exps)
-      (cons (evaluate* (car exps) env)
+      (mcons (evaluate* (car exps) env)
             (if (pair? (cdr exps))
                 (evlis* (cdr exps) env)
                 '()))
@@ -71,7 +77,7 @@
 (define (update!* id env value)
   (if (pair? env)
       (if (eq? (caar env) id)
-          (begin (set-cdr! (car env) value)
+          (begin (set-mcdr! (car env) value)
                  value)
           (update!* id (cdr env) value))
       (wrong* "No such binding: " id)))
@@ -80,14 +86,14 @@
 (define (extend* vars vals env)
   (cond ((pair? vars)
          (if (pair? vals)
-             (cons (cons (car vars) (car vals))
+             (mcons (mcons (car vars) (car vals))
                    (extend* env (cdr vars) (cdr vals)))
-             (wrong* "Not enough values")))
+             (wrong* "Not enough values" vals)))
         ((null? vars)
          (if (null? vals)
              env
-             (wrong* "Too many values")))
-        ((symbol? vars) (cons (cons vars vals) env))))
+             (wrong* "Too many values" vals)))
+        ((symbol? vars) (mcons (mcons vars vals) env))))
 
 (define (invoke* fn args)
   (if (procedure? fn)
@@ -123,6 +129,7 @@
         ((begin) (eprogn* (cdr e) env))
         ((set!) (update!* (cadr e) env (evaluate* (caddr e) env)))
         ((lambda) (make-function* (cadr e) (cddr e) env))
+        ((eval) (evaluate* (cadr e) env))
         (else (invoke* (evaluate* (car e) env)
                        (evlis* (cdr e) env))))))
 
@@ -182,7 +189,7 @@
 (definitial* f *the-false-value*)
 (definitial* nil '())
 
-(defprimitive* cons (fn* cons) 2)
+(defprimitive* mcons (fn* mcons) 2)
 
 (defpredicate* eq? (fn* eq?) 2)
 
@@ -191,6 +198,7 @@
 (def* '+ (fn* +))
 (def* '- (fn* -))
 (def* '* (fn* *))
+(def* 'call/cc (fn* call-with-current-continuation))
 
 ;; runs, but is shitty
 ;; if using geiser, place in .emacs file
@@ -242,12 +250,12 @@
 ;; (define (extend13 name value env)
 ;;   (if (pair? name)
 ;;       (wrong* "NAME must be atomic: " name)
-;;       (cons (cons name value) env)))
+;;       (mcons (mcons name value) env)))
 
-(define *env13* (list (cons '(a b c) '(1 2 3))))
+(define *env13* (list (mcons '(a b c) '(1 2 3))))
 
 (define (extend13 names values env)
-  (cons (cons names values) env))
+  (mcons (mcons names values) env))
 
 (define (lookup13 id env)
   (define (lookthrough names vals)
@@ -274,7 +282,7 @@
     (if (pair? names)
         (if (eq? (car names) id)
             (if (pair? vals)
-                (begin (set-car! vals value)
+                (begin (set-mcar! vals value)
                        value)
                 (wrong* "No binding to: " id))
             *undef*)
@@ -286,19 +294,20 @@
         (if (eq? return-value *undef*)
             (update!13 id (cdr env) value)
             (if (eq? return-value 'set)
-                (begin (set-cdr! (car env) value) value)
+                (begin (set-mcdr! (car env) value) value)
                 value)))
       (wrong* "No such binding: " id)))
 ;; 1.4
 
 ;; 1.5
+;; defprimitive
+;; of def*
 
 
 ;; 1.6
 (definitial* list (lambda values values))
 
 ;; 1.7
-
 
 ;; (define (call/cc* fn))
 
@@ -312,7 +321,7 @@
   (display "(eval) ")
   (newline)
   (time (display (eval (if (> 122412 123421) 1 2)
-                       (null-environment 5)))
+                       ns))
         (newline))
   (newline)
 
@@ -320,7 +329,7 @@
   (newline)
   (time (display (eval (evaluate* (if (> 122412 123421) 1 2)
                                   *env-global*)
-                       (null-environment 5)))
+                       ns))
         (newline))
   (newline)
 
@@ -330,6 +339,6 @@
                         (evaluate* (if (> 122412 123421) 1 2)
                                    *env-global*)
                         *env-global*)
-                       (null-environment 5)))
-        (newline))
-  (newline))
+                       ns))
+        (newline)))
+
