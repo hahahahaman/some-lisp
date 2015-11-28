@@ -47,7 +47,7 @@
 ;; custom false value
 ;; dotted pair probably won't be confused with anything else
 ;; everything else is true
-(define *the-false-value* (mcons "false" "boolean"))
+(define *the-false-value* (cons "false" "boolean"))
 
 ;; for when no other value should be returned
 (define *undef* (mcons "what" "is"))
@@ -79,52 +79,53 @@
 
 ;; evaluate sequence in order
 (define (eprogn* exps env)
-  (if (mpair? exps)
-      (if (mpair? (mcdr exps))
-          (begin (evaluate* (mcar exps) env)
-                 (eprogn* (mcdr exps) env))
-          (evaluate* (mcar exps) env))
+  (if (pair? exps)
+      (if (pair? (cdr exps))
+          (begin (evaluate* (car exps) env)
+                 (eprogn* (cdr exps) env))
+          (evaluate* (car exps) env))
       *undef*))
 
 ;; take a list of exprs
 ;; return the corresponding list of values of those exprs
 ;; mapmcar
 (define (evlis* exps env)
-  (if (mpair? exps)
-      (mcons (evaluate* (mcar exps) env)
-            (if (mpair? (mcdr exps))
-                (evlis* (mcdr exps) env)
+  (if (pair? exps)
+      (cons (evaluate* (car exps) env)
+            (if (pair? (cdr exps))
+                (evlis* (cdr exps) env)
                 '()))
       '()))
 
 ;;search environment for key equal to id
 (define (lookup* id env)
-  (if (mpair? env)
-      (if (eq? (mcaar env) id)
-          (mcdar env)
-          (lookup* id (mcdr env)))
-      (wrong* "No such binding: " id)))
+  (if (atom? env)
+      (wrong* "No such binding:" id)
+      (let ((env (mpair->pair env)))
+        (if (eq? (caar env) id)
+           (cdar env)
+           (lookup* id (cdr env))))))
 
 ;; destructive change to value of variable bound in env
-(define (update!* id env value)
+(define (update!* id value env)
   (if (mpair? env)
       (if (eq? (mcaar env) id)
           (begin (set-mcdr! (mcar env) value)
                  value)
-          (update!* id (mcdr env) value))
+          (update!* id value (mcdr env)))
       (wrong* "No such binding: " id)))
 
 ;; binds new variables to the environment
 (define (extend* vars vals env)
-  (cond ((mpair? vars)
-         (if (mpair? vals)
-             (mcons (mcons (mcar vars) (mcar vals))
-                   (extend* env (mcdr vars) (mcdr vals)))
-             (wrong* "Not enough values" vals)))
+  (cond ((pair? vars)
+         (if (pair? vals)
+             (mcons (mcons (car vars) (car vals))
+                    (extend* (cdr vars) (cdr vals) env))
+             (wrong* "Not enough values:" vals)))
         ((null? vars)
          (if (null? vals)
              env
-             (wrong* "Too many values" vals)))
+             (wrong* "Too many values:" vals)))
         ((symbol? vars) (mcons (mcons vars vals) env))))
 
 (define (invoke* fn args)
@@ -136,32 +137,30 @@
         (display result)
         (newline)
         result)
-      (wrong* "Not a function" fn)))
+      (wrong* "Not a function:" fn)))
 
 (define (make-function* vars body env)
-  (lambda (vals)
+  (lambda vals
     (eprogn* body (extend* vars vals env))))
 
 (define (evaluate* e env)
+  ;; e is either atomic or a list
   (if (atom? e)
-      ;; so we have an atom
       (cond ((symbol? e) (lookup* e env))
             ((or (number? e) (string? e) (char? e) (boolean? e) (vector? e))
              e)
-            (else (wrong* "Cannot evaluate: " e)))
-
-      ;; list
-      (case (mcar e)
-        ((quote) (mcadr e))
-        ((if) (if (not (eq? (evaluate* (mcadr e) env) *the-false-value*))
-                  (evaluate* (mcaddr e) env)
-                  (evaluate* (mcadddr e) env)))
-        ((begin) (eprogn* (mcdr e) env))
-        ((set!) (update!* (mcadr e) env (evaluate* (mcaddr e) env)))
-        ((lambda) (make-function* (mcadr e) (mcddr e) env))
-        ((eval) (evaluate* (mcadr e) env))
-        (else (invoke* (evaluate* (mcar e) env)
-                       (evlis* (mcdr e) env))))))
+            (else (wrong* "Cannot evaluate:" e)))
+      (case (car e)
+        ((quote) (cadr e))
+        ((if) (if (not (eq? (evaluate* (cadr e) env) *the-false-value*))
+                  (evaluate* (caddr e) env)
+                  (evaluate* (cadddr e) env)))
+        ((begin) (eprogn* (cdr e) env))
+        ((set!) (update!* (cadr e) (evaluate* (caddr e) env) env))
+        ((lambda) (make-function* (cadr e) (cddr e) env))
+        ((eval) (evaluate* (cadr e) env))
+        (else (invoke* (evaluate* (car e) env)
+                       (evlis* (cdr e) env))))))
 
 ;; --- end of interpreter
 
@@ -190,7 +189,7 @@
        (lambda values
          (if (= arity (length values))
              (apply value values)
-             (wrong* "Incorrect arity: " (list 'name values))))))))
+             (wrong* "Incorrect arity:" (list 'name values))))))))
 
 (define-syntax defpredicate*
   (syntax-rules ()
@@ -252,7 +251,7 @@
 ;; from the book
 (define (chapter1-scheme)
   (define (toplevel)
-    (display (evaluate* (read *env-global*)))
+    (display (evaluate* (read) *env-global*))
     (toplevel))
   (toplevel))
 
@@ -282,32 +281,35 @@
 ;;       (wrong* "NAME must be atomic: " name)
 ;;       (mcons (mcons name value) env)))
 
-(define *env13* (list (mcons '(a b c) '(1 2 3))))
+;; ribcage shape
+(define *env13* (mlist (mcons (mlist 'a 'b 'c) (mlist 1 2 3))))
 
 (define (extend13 names values env)
-  (mcons (mcons names values) env))
+  (mcons (mcons (pair->mpair names) (pair->mpair values)) env))
 
 (define (lookup13 id env)
   (define (lookthrough names vals)
-    (if (mpair? names)
-        (if (eq? (mcar names) id)
-            (if (mpair? vals)
-                (mcar vals)
-                (wrong* "No value bound to: " id))
-            *undef*)
-        (if (eq? names id)
-            vals
-            *undef*)))
+    (let ((names (mpair->pair names))
+          (vals (mpair->pair vals)))
+      (if (pair? names)
+         (if (eq? (car names) id)
+             (if (pair? vals)
+                 (car vals)
+                 (wrong* "No value bound to:" id))
+             *undef*)
+         (if (eq? names id)
+             vals
+             *undef*))))
   (if (mpair? env)
       (if (mpair? (mcaar env)) ;; names is a list
-          (let ((return-value (lookthrough (mcaar env) (cdar env))))
+          (let ((return-value (lookthrough (mcaar env) (mcdar env))))
             (if (eq? return-value *undef*)
                 (lookup13 id (mcdr env))
                 return-value))
           (cdar env))
-      (wrong* "No such binding: " id)))
+      (wrong* "No such binding:" id)))
 
-(define (update!13 id env value)
+(define (update!13 id value env)
   (define (lookthrough names vals)
     (if (mpair? names)
         (if (eq? (mcar names) id)
@@ -320,13 +322,13 @@
             'set
             *undef*)))
   (if (mpair? env)
-      (let ((return-value (lookthrough (mcaar env) (cdar env))))
+      (let ((return-value (lookthrough (mcaar env) (mcdar env))))
         (if (eq? return-value *undef*)
-            (update!13 id (mcdr env) value)
+            (update!13 id value (mcdr env))
             (if (eq? return-value 'set)
                 (begin (set-mcdr! (mcar env) value) value)
                 value)))
-      (wrong* "No such binding: " id)))
+      (wrong* "No such binding:" id)))
 ;; 1.4
 
 ;; 1.5

@@ -31,15 +31,15 @@
     (check-equal? (mcaddr mli) (pair->mpair (caddr li)))
     (check-equal? (mcadddr mli) (pair->mpair (cadddr li))))
 
-  ;; (check-equal? (evaluate* '(+ 1 2) *env-global*)
-  ;;               (+ 1 2) "interpreted addition")
+  (check-equal? (evaluate* '(+ 1 2) *env-global*)
+                (+ 1 2) "interpreted addition")
 
-  ;; (check-equal? (evaluate* '(* 1 2) *env-global*)
-  ;;               (* 1 2) "interpreted multiplication")
+  (check-equal? (evaluate* '(* 1 2) *env-global*)
+                (* 1 2) "interpreted multiplication")
 
   ;; definitial*
-  ;; (check-equal? (evaluate* 't *env-global*) #t)
-  ;; (check-equal? (evaluate* 'f *env-global*) *the-false-value*)
-  ;; (check-equal? (evaluate* 'nil *env-global*) '())
+  (check-equal? (evaluate* 't *env-global*) #t)
+  (check-equal? (evaluate* 'f *env-global*) *the-false-value*)
+  (check-equal? (evaluate* 'nil *env-global*) '())
   (display "--- done ---")
   (newline))
