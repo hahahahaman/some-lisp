@@ -1,6 +1,6 @@
 #lang racket
-(provide evaluate* *env-global*)
 (require scheme/mpair)
+(provide (all-defined-out))
 ;; new r6rs racket uses immutable pairs, and other unknown changes
 ;; this book was published in the 1990s
 ;; mutable pairs in seperate library scheme/mpair
@@ -18,6 +18,16 @@
 (define (mcddr e) (mcdr (mcdr e)))
 (define (mcaddr e) (mcar (mcdr (mcdr e))))
 (define (mcadddr e) (mcar (mcdr (mcdr (mcdr e)))))
+
+(define (atom? e)
+  (not (or (pair? e)
+           (mpair? e))))
+
+;; (define (mlist . args)
+;;   (if (null? args)
+;;       '()
+;;       (mcons (car args) (mlist (cdr args)))))
+
 (define (pair->mpair p)
   (if (pair? p)
       (mcons (if (pair? (car p))
@@ -33,10 +43,6 @@
                 (mcar p))
             (mpair->pair (mcdr p)))
       p))
-
-(define (atom? e)
-  (not (or (pair? e)
-           (mpair? e))))
 
 ;; custom false value
 ;; dotted pair probably won't be confused with anything else
