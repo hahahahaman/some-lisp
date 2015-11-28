@@ -88,7 +88,7 @@
 
 ;; take a list of exprs
 ;; return the corresponding list of values of those exprs
-;; mapmcar
+;; like mapcar that applies lambda
 (define (evlis* exps env)
   (if (pair? exps)
       (cons (evaluate* (car exps) env)
