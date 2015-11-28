@@ -1,4 +1,4 @@
-### lisp in small pieces
+### some lisp
 
 Following [Lisp in Small Pieces][LISP].
 
@@ -12,9 +12,9 @@ implementation, because tinkering is more engaging and feels more concrete. So,
 I'm basing my code off already working repositories [this][squaremo-repo] and
 [this][modern-repo]. And with that I'll try to follow along.
 
-[LISP](https://pages.lip6.fr/Christian.Queinnec/WWW/LiSP.html)
+[LISP]: https://pages.lip6.fr/Christian.Queinnec/WWW/LiSP.html
 
-[squaremo-repo](https://github.com/squaremo/lisp-in-small-pieces)
-[modern-repo](https://github.com/appleby/Lisp-In-Small-Pieces/blob/master/src/chap1.scm)
+[squaremo-repo]: https://github.com/squaremo/lisp-in-small-pieces
+[modern-repo]: https://github.com/appleby/Lisp-In-Small-Pieces/blob/master/src/chap1.scm
 
-[literate-programming](https://www.youtube.com/watch?v=Av0PQDVTP4A)
+[literate-programming]: https://www.youtube.com/watch?v=Av0PQDVTP4A
